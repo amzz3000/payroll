@@ -1,67 +1,75 @@
 require('dotenv').config();
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
-const path = require('path');
 
 const app = express();
-const port = process.env.PORT || 5001;
+const port = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
 
-// Create SQLite database connection
-const db = new sqlite3.Database(path.join(__dirname, 'payroll.db'), (err) => {
-  if (err) {
-    console.error('Error opening database:', err);
-    process.exit(1);
+// Create PostgreSQL connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
   }
-  console.log('Connected to SQLite database');
-  
-  // Create tables if they don't exist
-  db.serialize(() => {
+});
+
+// Initialize database tables
+async function initializeDatabase() {
+  try {
     // Admin table
-    db.run(`CREATE TABLE IF NOT EXISTS admin (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE,
-      password TEXT
-    )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admin (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE,
+        password TEXT
+      )
+    `);
 
     // Employee table
-    db.run(`CREATE TABLE IF NOT EXISTS employee (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT,
-      email TEXT UNIQUE,
-      phone TEXT,
-      password TEXT
-    )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS employee (
+        id SERIAL PRIMARY KEY,
+        name TEXT,
+        email TEXT UNIQUE,
+        phone TEXT,
+        password TEXT
+      )
+    `);
 
     // Leaves table
-    db.run(`CREATE TABLE IF NOT EXISTS leaves (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      employee_id INTEGER,
-      date TEXT,
-      reason TEXT,
-      status TEXT DEFAULT 'Pending',
-      FOREIGN KEY (employee_id) REFERENCES employee(id)
-    )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS leaves (
+        id SERIAL PRIMARY KEY,
+        employee_id INTEGER REFERENCES employee(id),
+        date TEXT,
+        reason TEXT,
+        status TEXT DEFAULT 'Pending'
+      )
+    `);
 
     // Create default admin if not exists
-    db.get("SELECT * FROM admin WHERE username = 'admin'", async (err, row) => {
-      if (err) {
-        console.error('Error checking admin:', err);
-        return;
-      }
-      if (!row) {
-        const hashedPassword = await bcrypt.hash('admin123', 10);
-        db.run("INSERT INTO admin (username, password) VALUES (?, ?)", 
-          ['admin', hashedPassword]);
-      }
-    });
-  });
-});
+    const adminCheck = await pool.query("SELECT * FROM admin WHERE username = 'admin'");
+    if (adminCheck.rows.length === 0) {
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      await pool.query(
+        "INSERT INTO admin (username, password) VALUES ($1, $2)",
+        ['admin', hashedPassword]
+      );
+    }
+
+    console.log('Database initialized successfully');
+  } catch (err) {
+    console.error('Error initializing database:', err);
+  }
+}
+
+initializeDatabase();
 
 // Health check endpoint
 app.get('/', (req, res) => {
@@ -72,11 +80,9 @@ app.get('/', (req, res) => {
 app.post('/admin/login', async (req, res) => {
   const { username, password } = req.body;
 
-  db.get('SELECT * FROM admin WHERE username = ?', [username], async (err, admin) => {
-    if (err) {
-      console.error('Admin login error:', err);
-      return res.status(500).json({ error: "Error during login" });
-    }
+  try {
+    const result = await pool.query('SELECT * FROM admin WHERE username = $1', [username]);
+    const admin = result.rows[0];
 
     if (!admin) {
       return res.status(400).json({ message: "Invalid credentials" });
@@ -102,18 +108,19 @@ app.post('/admin/login', async (req, res) => {
         username: admin.username
       }
     });
-  });
+  } catch (err) {
+    console.error('Admin login error:', err);
+    res.status(500).json({ error: "Error during login" });
+  }
 });
 
 // Employee Login
 app.post('/employee/login', async (req, res) => {
   const { email, password } = req.body;
 
-  db.get('SELECT * FROM employee WHERE email = ?', [email], async (err, employee) => {
-    if (err) {
-      console.error('Employee login error:', err);
-      return res.status(500).json({ error: "Error during login" });
-    }
+  try {
+    const result = await pool.query('SELECT * FROM employee WHERE email = $1', [email]);
+    const employee = result.rows[0];
 
     if (!employee) {
       return res.status(400).json({ message: "Invalid credentials" });
@@ -145,166 +152,148 @@ app.post('/employee/login', async (req, res) => {
         phone: employee.phone
       }
     });
-  });
+  } catch (err) {
+    console.error('Employee login error:', err);
+    res.status(500).json({ error: "Error during login" });
+  }
 });
 
 // Employee Signup
 app.post('/employee/signup', async (req, res) => {
   const { name, email, password, phone } = req.body;
 
-  db.get('SELECT * FROM employee WHERE email = ?', [email], async (err, existingEmployee) => {
-    if (err) {
-      console.error('Signup error:', err);
-      return res.status(500).json({ message: 'Error during registration' });
-    }
-
-    if (existingEmployee) {
+  try {
+    const checkResult = await pool.query('SELECT * FROM employee WHERE email = $1', [email]);
+    if (checkResult.rows.length > 0) {
       return res.status(400).json({ message: 'Email already registered' });
     }
-
+    
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    db.run(
+    const result = await pool.query(
       `INSERT INTO employee (name, email, phone, password)
-       VALUES (?, ?, ?, ?)`,
-      [name, email, phone, hashedPassword],
-      function(err) {
-        if (err) {
-          console.error('Signup error:', err);
-          return res.status(500).json({ message: 'Error during registration' });
-        }
-
-        res.status(201).json({ 
-          message: 'Employee registered successfully',
-          employee: {
-            id: this.lastID,
-            name,
-            email,
-            phone
-          }
-        });
-      }
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, email, phone`,
+      [name, email, phone, hashedPassword]
     );
-  });
+
+    res.status(201).json({ 
+      message: 'Employee registered successfully',
+      employee: result.rows[0]
+    });
+  } catch (err) {
+    console.error('Signup error:', err);
+    res.status(500).json({ message: 'Error during registration' });
+  }
 });
 
 // Get employee count
-app.get('/api/employees/count', verifyToken('admin'), (req, res) => {
-  db.get('SELECT COUNT(*) as count FROM employee', (err, result) => {
-    if (err) {
-      console.error('Error fetching employee count:', err);
-      return res.status(500).json({ error: 'Failed to fetch employee count' });
-    }
-    res.json({ count: result.count });
-  });
+app.get('/api/employees/count', verifyToken('admin'), async (req, res) => {
+  try {
+    const result = await pool.query('SELECT COUNT(*) as count FROM employee');
+    res.json({ count: parseInt(result.rows[0].count) });
+  } catch (err) {
+    console.error('Error fetching employee count:', err);
+    res.status(500).json({ error: 'Failed to fetch employee count' });
+  }
 });
 
 // Get all employees
-app.get('/employees', verifyToken('admin'), (req, res) => {
-  db.all('SELECT id, name, email, phone FROM employee ORDER BY id', (err, rows) => {
-    if (err) {
-      console.error('Error fetching employees:', err);
-      return res.status(500).json({ error: 'Failed to fetch employees' });
-    }
-    res.json(rows);
-  });
+app.get('/employees', verifyToken('admin'), async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name, email, phone FROM employee ORDER BY id');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching employees:', err);
+    res.status(500).json({ error: 'Failed to fetch employees' });
+  }
 });
 
 // Add new employee
 app.post('/employees', verifyToken('admin'), async (req, res) => {
   const { name, email, phone, password } = req.body;
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  
-  db.run(
-    `INSERT INTO employee (name, email, phone, password)
-     VALUES (?, ?, ?, ?)`,
-    [name, email, phone, hashedPassword],
-    function(err) {
-      if (err) {
-        console.error('Error adding employee:', err);
-        return res.status(500).json({ error: 'Failed to add employee' });
-      }
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      `INSERT INTO employee (name, email, phone, password)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, email, phone`,
+      [name, email, phone, hashedPassword]
+    );
 
-      res.status(201).json({
-        id: this.lastID,
-        name,
-        email,
-        phone
-      });
-    }
-  );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error adding employee:', err);
+    res.status(500).json({ error: 'Failed to add employee' });
+  }
 });
 
 // Get pending leave requests
-app.get('/api/leave-requests/pending', verifyToken('admin'), (req, res) => {
-  db.all(`
-    SELECT l.*, e.name as employee_name, e.email as employee_email 
-    FROM leaves l 
-    JOIN employee e ON l.employee_id = e.id 
-    WHERE l.status = 'Pending'
-    ORDER BY l.date DESC
-  `, (err, rows) => {
-    if (err) {
-      console.error('Error fetching pending leaves:', err);
-      return res.status(500).json({ error: 'Failed to fetch pending leaves' });
-    }
-    res.json(rows);
-  });
+app.get('/api/leave-requests/pending', verifyToken('admin'), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT l.*, e.name as employee_name, e.email as employee_email 
+      FROM leaves l 
+      JOIN employee e ON l.employee_id = e.id 
+      WHERE l.status = 'Pending'
+      ORDER BY l.date DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching pending leaves:', err);
+    res.status(500).json({ error: 'Failed to fetch pending leaves' });
+  }
 });
 
 // Update leave request status
-app.put('/leaves/:id/status', verifyToken('admin'), (req, res) => {
+app.put('/leaves/:id/status', verifyToken('admin'), async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  db.run(
-    'UPDATE leaves SET status = ? WHERE id = ?',
-    [status, id],
-    function(err) {
-      if (err) {
-        console.error('Error updating leave status:', err);
-        return res.status(500).json({ error: 'Failed to update leave status' });
-      }
-      res.json({ message: 'Leave status updated successfully' });
-    }
-  );
+  try {
+    await pool.query(
+      'UPDATE leaves SET status = $1 WHERE id = $2',
+      [status, id]
+    );
+    res.json({ message: 'Leave status updated successfully' });
+  } catch (err) {
+    console.error('Error updating leave status:', err);
+    res.status(500).json({ error: 'Failed to update leave status' });
+  }
 });
 
 // Get employee's leave requests
-app.get('/leave-requests/employee', verifyToken('employee'), (req, res) => {
-  db.all(
-    'SELECT * FROM leaves WHERE employee_id = ? ORDER BY date DESC',
-    [req.user.id],
-    (err, rows) => {
-      if (err) {
-        console.error('Error fetching employee leaves:', err);
-        return res.status(500).json({ error: 'Failed to fetch leave requests' });
-      }
-      res.json(rows);
-    }
-  );
+app.get('/leave-requests/employee', verifyToken('employee'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM leaves WHERE employee_id = $1 ORDER BY date DESC',
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching employee leaves:', err);
+    res.status(500).json({ error: 'Failed to fetch leave requests' });
+  }
 });
 
 // Submit new leave request
-app.post('/leave-requests', verifyToken('employee'), (req, res) => {
+app.post('/leave-requests', verifyToken('employee'), async (req, res) => {
   const { date, reason } = req.body;
   const employee_id = req.user.id;
 
-  db.run(
-    'INSERT INTO leaves (employee_id, date, reason) VALUES (?, ?, ?)',
-    [employee_id, date, reason],
-    function(err) {
-      if (err) {
-        console.error('Error submitting leave request:', err);
-        return res.status(500).json({ error: 'Failed to submit leave request' });
-      }
-      res.status(201).json({ 
-        message: 'Leave request submitted successfully',
-        id: this.lastID
-      });
-    }
-  );
+  try {
+    const result = await pool.query(
+      'INSERT INTO leaves (employee_id, date, reason) VALUES ($1, $2, $3) RETURNING id',
+      [employee_id, date, reason]
+    );
+    res.status(201).json({ 
+      message: 'Leave request submitted successfully',
+      id: result.rows[0].id
+    });
+  } catch (err) {
+    console.error('Error submitting leave request:', err);
+    res.status(500).json({ error: 'Failed to submit leave request' });
+  }
 });
 
 // Token verification middleware
