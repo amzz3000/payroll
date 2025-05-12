@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
 import { useNavigate } from 'react-router-dom';
+import config from '../config';
 import EmployeeNav from './EmployeeNav';
 import './EPayroll.css';
 
@@ -25,7 +26,7 @@ function EmployeePayroll() {
       let employeeId;
       try {
         const decoded = jwtDecode(token);
-        employeeId = decoded.id; // Assuming the token contains `id` field
+        employeeId = decoded.id;
         if (!employeeId) throw new Error('Invalid token, no employee ID found');
       } catch (err) {
         console.error('Invalid token', err);
@@ -38,7 +39,7 @@ function EmployeePayroll() {
       setError(null);
   
       try {
-        const response = await axios.get(`http://localhost:5000/payroll/${employeeId}`, {
+        const response = await axios.get(`${config.API_URL}/payroll/${employeeId}`, {
           headers: { Authorization: `Bearer ${token}` },
           signal: controller.signal
         });

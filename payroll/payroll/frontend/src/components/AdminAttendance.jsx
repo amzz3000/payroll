@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import config from '../config';
 import './AdminAttendance.css';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,7 +13,7 @@ function AdminAttendance() {
     const fetchAttendance = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:5000/admin/attendance', {
+        const response = await axios.get(`${config.API_URL}/admin/attendance`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setAttendanceData(response.data);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import config from '../config';
 import './Login.css';
 
 function Login({ isAdmin }) {
@@ -18,7 +19,7 @@ const handleLogin = async (e) => {
   setError('');
 
   try {
-    const res = await fetch(`http://localhost:5000/${isAdmin ? 'admin/login' : 'employee/login'}`, {
+    const res = await fetch(`${config.API_URL}/${isAdmin ? 'admin/login' : 'employee/login'}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(isAdmin ? {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import config from '../config';
 import './AdminDashBoard.css';
 
 function AdminDashboard() {
@@ -20,7 +21,7 @@ function AdminDashboard() {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No authentication token found');
 
-      const response = await axios.get('http://localhost:5000/api/leave-requests/pending/count', {
+      const response = await axios.get(`${config.API_URL}/api/leave-requests/pending/count`, {
         headers: { 'Authorization': `Bearer ${token}` },
         timeout: 5000
       });
@@ -37,7 +38,7 @@ function AdminDashboard() {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No authentication token found');
   
-      const response = await axios.get('http://localhost:5000/api/employees/count', {
+      const response = await axios.get(`${config.API_URL}/api/employees/count`, {
         headers: { 'Authorization': `Bearer ${token}` },
         timeout: 5000
       });

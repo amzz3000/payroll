@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import config from '../config';
 import './EmployeeAttendance.css';
 
 function EmployeeAttendance() {
@@ -15,12 +16,11 @@ function EmployeeAttendance() {
 
   useEffect(() => {
     if (inTime && outTime) {
-
       const sendAttendance = async () => {
         try {
           const token = localStorage.getItem('token');
           console.log('Sending inTime:', inTime, 'outTime:', outTime);
-          const response = await fetch('http://localhost:5000/employee/attendance', {
+          const response = await fetch(`${config.API_URL}/employee/attendance`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

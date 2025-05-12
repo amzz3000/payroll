@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import config from '../config';
 import './MyLeaves.css';
 
 function MyLeaves() {
@@ -19,7 +20,7 @@ function MyLeaves() {
       }
 
       try {
-        const response = await axios.get('http://localhost:5000/leave-requests/employee', {
+        const response = await axios.get(`${config.API_URL}/leave-requests/employee`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import config from '../config';
 import './ViewEmployees.css';
 
 const EmployeeManagement = () => {
@@ -20,7 +21,7 @@ const EmployeeManagement = () => {
 
   const fetchEmployees = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/employees', {
+      const response = await axios.get(`${config.API_URL}/employees`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
@@ -47,7 +48,7 @@ const EmployeeManagement = () => {
   const handleAddEmployee = async () => {
     try {
       const response = await axios.post(
-        'http://localhost:5000/employees',
+        `${config.API_URL}/employees`,
         formData,
         {
           headers: {
@@ -66,7 +67,7 @@ const EmployeeManagement = () => {
   const handleUpdateEmployee = async (id) => {
     try {
       const response = await axios.put(
-        `http://localhost:5000/employees/${id}`,
+        `${config.API_URL}/employees/${id}`,
         formData,
         {
           headers: {
@@ -87,7 +88,7 @@ const EmployeeManagement = () => {
 
   const handleDeleteEmployee = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/employees/${id}`, {
+      await axios.delete(`${config.API_URL}/api/employees/${id}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },

@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import config from '../config';
 import './payroll.css';
 
 function CreatePayroll() {
@@ -29,7 +29,7 @@ function CreatePayroll() {
 
       setIsLoading(true);
       try {
-        const response = await axios.get('http://localhost:5000/employees', {
+        const response = await axios.get(`${config.API_URL}/employees`, {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -80,7 +80,7 @@ function CreatePayroll() {
 
     setIsLoading(true);
     try {
-      const response = await axios.post('http://localhost:5000/payroll', payrollData, {
+      const response = await axios.post(`${config.API_URL}/payroll`, payrollData, {
         headers: {
           Authorization: `Bearer ${token}`
         }

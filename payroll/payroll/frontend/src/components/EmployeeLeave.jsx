@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import config from '../config';
 import './EmployeeLeaves.css';
 
 function EmployeeLeave() {
@@ -24,7 +25,7 @@ function EmployeeLeave() {
 
     try {
       const response = await axios.post(
-        'http://localhost:5000/leave-requests',
+        `${config.API_URL}/leave-requests`,
         { date, reason },
         {
           headers: {
@@ -38,7 +39,6 @@ function EmployeeLeave() {
         alert(response.data.message);
         setDate('');
         setReason('');
-        // Optionally refresh the leave requests list
         navigate('/employee/my-leaves');
       }
     } catch (err) {
