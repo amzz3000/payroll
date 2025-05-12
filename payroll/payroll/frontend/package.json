@@ -2,6 +2,7 @@
   "name": "payroll",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://amzz3000.github.io/payroll",
   "dependencies": {
     "@testing-library/dom": "^9.3.3",
     "@testing-library/jest-dom": "^5.17.0",
