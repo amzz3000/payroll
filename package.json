@@ -1,0 +1,12 @@
+{
+  "name": "payroll-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "concurrently \"cd payroll/payroll/backend; npm start\" \"cd payroll/payroll/frontend; npm start\"",
+    "install-all": "concurrently \"cd payroll/payroll/backend; npm install\" \"cd payroll/payroll/frontend; npm install\""
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
