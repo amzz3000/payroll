@@ -22,7 +22,8 @@ jobs:
       - name: Install Dependencies
         run: |
           cd payroll/payroll/frontend
-          npm ci
+          npm install --legacy-peer-deps
+          npm list
 
       - name: Build
         run: |
@@ -30,6 +31,7 @@ jobs:
           npm run build
         env:
           CI: false
+          NODE_ENV: production
           REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
 
       - name: Deploy
