@@ -16,16 +16,21 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'payroll/payroll/frontend/package-lock.json'
 
       - name: Install Dependencies
         run: |
           cd payroll/payroll/frontend
-          npm install
+          npm ci
 
       - name: Build
         run: |
           cd payroll/payroll/frontend
           npm run build
+        env:
+          CI: false
+          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
 
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
