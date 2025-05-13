@@ -21,7 +21,7 @@ function Signup() {
     setSuccess('');
 
     try {
-      const res = await fetch('http://localhost:5000/employee/signup', {
+      const res = await fetch('http://localhost:5001/employee/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(signupData),

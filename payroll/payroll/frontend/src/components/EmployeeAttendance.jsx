@@ -5,6 +5,7 @@ import './EmployeeAttendance.css';
 function EmployeeAttendance() {
   const [inTime, setInTime] = useState('');
   const [outTime, setOutTime] = useState('');
+  const [message, setMessage] = useState('');
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
@@ -13,35 +14,6 @@ function EmployeeAttendance() {
     if (savedIn) setInTime(savedIn);
     if (savedOut) setOutTime(savedOut);
   }, [today]);
-
-  useEffect(() => {
-    if (inTime && outTime) {
-      const sendAttendance = async () => {
-        try {
-          const token = localStorage.getItem('token');
-          console.log('Sending inTime:', inTime, 'outTime:', outTime);
-          const response = await fetch(`${config.API_URL}/employee/attendance`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ inTime, outTime })
-          });
-      
-          const data = await response.json();
-          if (response.ok) {
-            console.log('✅', data.message);
-          } else {
-            console.error('❌', data.error);
-          }
-        } catch (err) {
-          console.error('🚨 Error sending attendance:', err);
-        }
-      };
-      sendAttendance();
-    }
-  }, [inTime, outTime]);
 
   const handleInChange = (e) => {
     const value = e.target.value;
@@ -55,9 +27,37 @@ function EmployeeAttendance() {
     localStorage.setItem(`attendanceOut_${today}`, value);
   };
 
+  const handleSubmit = async () => {
+    setMessage('');
+    if (!inTime || !outTime) {
+      setMessage('Please enter both In Time and Out Time.');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${config.API_URL}/employee/attendance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ inTime, outTime })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setMessage('Attendance submitted successfully!');
+      } else {
+        setMessage(data.error || 'Failed to submit attendance.');
+      }
+    } catch (err) {
+      setMessage('Server error. Please try again later.');
+    }
+  };
+
   const handleReset = () => {
     setInTime('');
     setOutTime('');
+    setMessage('');
     localStorage.removeItem(`attendanceIn_${today}`);
     localStorage.removeItem(`attendanceOut_${today}`);
   };
@@ -87,6 +87,13 @@ function EmployeeAttendance() {
 
       <div className="attendance-actions">
         <button 
+          className="submit-button"
+          onClick={handleSubmit}
+          disabled={!inTime || !outTime}
+        >
+          Submit Attendance
+        </button>
+        <button 
           className="reset-button" 
           onClick={handleReset}
           disabled={!inTime && !outTime}
@@ -94,6 +101,7 @@ function EmployeeAttendance() {
           Reset Attendance
         </button>
       </div>
+      {message && <div className="attendance-message">{message}</div>}
     </div>
   );
 }

@@ -1,0 +1,24 @@
+services:
+  # Backend service
+  - type: web
+    name: payroll-backend
+    env: node
+    buildCommand: cd payroll/payroll/backend && npm install
+    startCommand: cd payroll/payroll/backend && npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: PORT
+        value: 5001
+
+  # Frontend service
+  - type: web
+    name: payroll-frontend
+    env: node
+    buildCommand: cd payroll/payroll/frontend && npm install && npm run build
+    startCommand: cd payroll/payroll/frontend && npm start
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://payroll-backend.onrender.com 

@@ -15,7 +15,7 @@ function AdminLeaves() {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No authentication token found');
 
-      const response = await axios.get('http://localhost:5000/api/leave-requests/pending', {
+      const response = await axios.get('http://localhost:5001/api/leave-requests/pending', {
         headers: { 'Authorization': `Bearer ${token}` },
         timeout: 5000
       });
@@ -45,7 +45,7 @@ function AdminLeaves() {
   const handleStatusUpdate = async (id, status) => {
     try {
       await axios.put(
-        `http://localhost:5000/leaves/${id}/status`,
+        `http://localhost:5001/leaves/${id}/status`,
         { status },
         {
           headers: {

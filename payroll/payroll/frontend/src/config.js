@@ -1,5 +1,5 @@
 const config = {
-    API_URL: 'https://payroll-backend-o9in.onrender.com'
+    API_URL: 'http://localhost:5001'
 };
 
 export default config; 

@@ -71,11 +71,12 @@ function CreatePayroll() {
     }
 
     const payrollData = {
-      employeeId: parseInt(selectedEmployee),
-      basicSalary: parseFloat(basicSalary),
+      employee_id: parseInt(selectedEmployee),
+      basic_salary: parseFloat(basicSalary),
       bonus: parseFloat(bonus),
       deductions: parseFloat(deductions),
-      taxPercent: parseFloat(taxPercent),
+      tax_percent: parseFloat(taxPercent),
+      payment_date: new Date().toISOString().split('T')[0]
     };
 
     setIsLoading(true);

@@ -6,17 +6,14 @@ const bcrypt = require('bcryptjs');
 const cors = require('cors');
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 5001;
 
 app.use(cors());
 app.use(express.json());
 
 // Create PostgreSQL connection pool
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  connectionString: process.env.DATABASE_URL || 'postgres://postgres:Youngboss3213!@localhost:5432/payroll'
 });
 
 // Initialize database tables
@@ -53,6 +50,20 @@ async function initializeDatabase() {
       )
     `);
 
+    // Payroll table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payroll (
+        id SERIAL PRIMARY KEY,
+        employee_id INTEGER REFERENCES employee(id),
+        basic_salary DECIMAL(10, 2) NOT NULL,
+        bonus DECIMAL(10, 2) NOT NULL,
+        deductions DECIMAL(10, 2) NOT NULL,
+        tax_percent DECIMAL(5, 2) NOT NULL,
+        net_salary DECIMAL(10, 2) NOT NULL,
+        payment_date DATE NOT NULL
+      )
+    `);
+
     // Create default admin if not exists
     const adminCheck = await pool.query("SELECT * FROM admin WHERE username = 'admin'");
     if (adminCheck.rows.length === 0) {
@@ -62,6 +73,18 @@ async function initializeDatabase() {
         ['admin', hashedPassword]
       );
     }
+
+    // Create attendance table if it doesn't exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS attendance (
+        id SERIAL PRIMARY KEY,
+        employee_id INTEGER REFERENCES employee(id),
+        date DATE NOT NULL,
+        in_time TIMESTAMP NOT NULL,
+        out_time TIMESTAMP NOT NULL
+      )
+    `);
+    console.log('Attendance table ensured');
 
     console.log('Database initialized successfully');
   } catch (err) {
@@ -293,6 +316,91 @@ app.post('/leave-requests', verifyToken('employee'), async (req, res) => {
   } catch (err) {
     console.error('Error submitting leave request:', err);
     res.status(500).json({ error: 'Failed to submit leave request' });
+  }
+});
+
+// Create payroll
+app.post('/payroll', verifyToken('admin'), async (req, res) => {
+  console.log('Received payroll creation request:', req.body);
+  const { employee_id, basic_salary, bonus, deductions, tax_percent, payment_date } = req.body;
+  
+  try {
+    // Calculate net salary
+    const net_salary = basic_salary + bonus - deductions - (basic_salary * (tax_percent / 100));
+    
+    const result = await pool.query(
+      `INSERT INTO payroll (employee_id, basic_salary, bonus, deductions, tax_percent, net_salary, payment_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [employee_id, basic_salary, bonus, deductions, tax_percent, net_salary, payment_date]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating payroll:', err);
+    res.status(500).json({ error: 'Failed to create payroll' });
+  }
+});
+
+// Get pending leave requests count
+app.get('/api/leave-requests/pending/count', verifyToken('admin'), async (req, res) => {
+  try {
+    const result = await pool.query("SELECT COUNT(*) FROM leaves WHERE status = 'Pending'");
+    res.json({ count: parseInt(result.rows[0].count, 10) });
+  } catch (err) {
+    console.error('Error fetching pending leaves count:', err);
+    res.status(500).json({ error: 'Failed to fetch pending leaves count' });
+  }
+});
+
+// Get payrolls for a specific employee
+app.get('/payroll/:employeeId', verifyToken('employee'), async (req, res) => {
+  const { employeeId } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM payroll WHERE employee_id = $1 ORDER BY payment_date DESC',
+      [employeeId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching payroll for employee:', err);
+    res.status(500).json({ error: 'Failed to fetch payroll records' });
+  }
+});
+
+// Employee submits attendance
+app.post('/employee/attendance', verifyToken('employee'), async (req, res) => {
+  const { inTime, outTime } = req.body;
+  const employee_id = req.user.id;
+  const date = new Date(inTime).toISOString().split('T')[0];
+  try {
+    // Insert or update attendance for the day
+    await pool.query(
+      `INSERT INTO attendance (employee_id, date, in_time, out_time)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (employee_id, date) DO UPDATE SET in_time = $3, out_time = $4`,
+      [employee_id, date, inTime, outTime]
+    );
+    res.json({ message: 'Attendance recorded successfully' });
+  } catch (err) {
+    console.error('Error saving attendance:', err);
+    res.status(500).json({ error: 'Failed to save attendance' });
+  }
+});
+
+// Admin fetches all attendance records
+app.get('/admin/attendance', verifyToken('admin'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT a.*, e.name as employee_name, e.email as employee_email
+       FROM attendance a
+       JOIN employee e ON a.employee_id = e.id
+       ORDER BY a.date DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching attendance:', err);
+    res.status(500).json({ error: 'Failed to fetch attendance records' });
   }
 });
 
